@@ -29,6 +29,7 @@ import { OrdersDateRangePicker } from './orders-date-range-picker.component';
 import ListOrderDetails from './list-order-details.component';
 import TransitionLatestQueueEntryButton from '../../lab-tabs/actions/transition-patient-to-new-queue/transition-patient-to-new-queue.component';
 import styles from './orders-data-table.scss';
+import { useInpatientAdmissionByPatients } from './orders-data-table.resource';
 
 const OrdersDataTable: React.FC<OrdersDataTableProps> = (props) => {
   const { t } = useTranslation();
@@ -45,7 +46,7 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = (props) => {
       return {
         ...order,
         dateActivated: formatDate(parseDate(order.dateActivated)),
-        patientName: order.patient?.display.split('-')[1],
+        patientName: order.patient?.display,
         patientUuid: order.patient?.uuid,
         patientAge: order.patient?.person?.age,
         status: order.fulfillerStatus ?? '--',
@@ -93,7 +94,8 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = (props) => {
       { id: 0, header: t('patient', 'Patient'), key: 'patientName' },
       { id: 1, header: t('age', 'Age'), key: 'patientAge' },
       { id: 2, header: t('gender', 'Gender'), key: 'patientGender' },
-      { id: 3, header: t('totalOrders', 'Total Orders'), key: 'totalOrders' },
+      { id: 3, header: t('ward', 'Ward'), key: 'patientWard' },
+      { id: 4, header: t('totalOrders', 'Total Orders'), key: 'totalOrders' },
     ];
 
     const showActionColumn = flattenedLabOrders.some((order) => order.fulfillerStatus === 'COMPLETED');
@@ -107,19 +109,24 @@ const OrdersDataTable: React.FC<OrdersDataTableProps> = (props) => {
 
   const handleOrderStatusChange = ({ selectedItem }) => setFilter(selectedItem.value);
 
+  const { data: wardData } = useInpatientAdmissionByPatients(paginatedLabOrders.map((o) => o.orders[0]?.patient?.uuid));
+
   const tableRows = useMemo(() => {
-    return paginatedLabOrders.map((order) => ({
+    return paginatedLabOrders.map((order, i) => ({
       id: order.patientId,
-      patientName: order.orders[0]?.patient?.display?.split('-')[1],
+      patientName: order.orders[0]?.patient?.display,
       orders: order.orders,
       totalOrders: order.orders?.length,
       patientAge: order.orders[0]?.patient?.person?.age,
       patientGender: order.orders[0]?.patient?.person?.gender,
+      patientWard: wardData?.[i]?.currentInpatientLocation?.display
+        ? wardData?.[i]?.currentInpatientLocation?.display
+        : 'Outpatient',
       action: order.orders.some((o) => o.fulfillerStatus === 'COMPLETED') ? (
         <TransitionLatestQueueEntryButton patientUuid={order.patientId} />
       ) : null,
     }));
-  }, [paginatedLabOrders]);
+  }, [paginatedLabOrders, wardData]);
 
   if (isLoading) {
     return <DataTableSkeleton className={styles.loader} role="progressbar" showHeader={false} showToolbar={false} />;
